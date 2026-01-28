@@ -22,6 +22,7 @@ import Script from "next/script";
 import { CartProvider } from "./context/CartContext";
 import CommunityBanner from "@/components/banners/CommunityBanner";
 import FloatingCourseSidebar from "@/components/FloatingCourseSidebar";
+import ChappiChatbot from "@/components/chappi/ChappiChatbot";
 
 export const metadata: Metadata = {
   title: "Educational Hub - Learn & Grow",
@@ -181,6 +182,7 @@ export default async function RootLayout({
                       <CommunityBanner /> {children}
                     </main>
                     <FloatingCourseSidebar />
+                    <ChappiChatbot />
                     <Footer />
                   </UserProvider>
                 </LoaderProvider>
