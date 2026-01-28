@@ -1,0 +1,125 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import PlaceListItem from "./hero-ui/place-list-item";
+import { Button } from "@heroui/react";
+
+type RecentCourse = {
+  _id: string; // from /api/courses/recent
+  course_name: string;
+  course_image?: string; // optional in case some are missing
+  slug: string;
+  rating?: number;
+  htmlDescription?: string;
+  description?: string; // optional in case some are missing
+  tags?: string[]; // optional in case some are missing
+  organization?: {
+    name: string;
+    logo?: string;
+    _id: string;
+  };
+  createdAt?: string;
+};
+
+export default function RecentlyAddedCourses() {
+  const [loading, setLoading] = useState(true);
+  const [courses, setCourses] = useState<RecentCourse[]>([]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function fetchCourses() {
+      try {
+        const res = await fetch("/api/courses/recent", {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error("Failed to fetch");
+        const data = await res.json();
+        setCourses(data.courses || []);
+      } catch (error) {
+        if ((error as any)?.name !== "AbortError") {
+          console.error("Error fetching recently added courses:", error);
+          setCourses([]);
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchCourses();
+    return () => controller.abort();
+  }, []);
+
+  return (
+    <div>
+      <div className="flex items-center">
+        <h1 className="my-8 text-xl md:min-w-[40%] md:text-5xl">
+          Recently Added
+        </h1>
+
+        {/* Mobile: Button after h1 */}
+        <div className="ml-auto md:hidden">
+          <Button
+            as={Link}
+            href="/courses?sort=newest"
+            variant="light"
+            size="sm"
+            className="min-w-[100px] underline"
+          >
+            View More
+          </Button>
+        </div>
+
+        {/* Desktop: Border div */}
+        <div className="hidden h-0.5 flex-1 bg-[#333333] md:block"></div>
+
+        {/* Desktop: Button after border div */}
+        <div className="hidden md:ml-4 md:block">
+          <Button
+            as={Link}
+            href="/courses?sort=newest"
+            variant="light"
+            className="min-w-[120px] text-base"
+          >
+            View More
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+        {loading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <PlaceListItem
+                key={`loading-${i}`}
+                id={`loading-${i}`}
+                name=""
+                href=""
+                price={0}
+                imageSrc=""
+                isLoading
+                tags={[]}
+                organization={undefined}
+              />
+            ))
+          : courses.length > 0 &&
+            courses.map((course) => (
+              <PlaceListItem
+                key={course._id}
+                id={course._id}
+                name={course.course_name}
+                href={`/courses/${course.slug}`}
+                slug={course.slug}
+                price={null}
+                imageSrc={course.course_image || "/placeholder.png"}
+                tags={course.tags || []}
+                description={course.description}
+                htmlDescription={course.htmlDescription}
+                organization={course.organization}
+              />
+            ))}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,120 @@
+# name: Build and Deploy to Coolify (HIGH CPU Spot EC2)
+
+# on:
+#   push:
+#     branches: [main]
+
+# jobs:
+#   build-and-push:
+#     name: Start EC2 Spot Runner
+#     runs-on: ubuntu-latest
+#     outputs:
+#       label: ${{ steps.start-runner.outputs.label }}
+#       ec2-instance-id: ${{ steps.start-runner.outputs.ec2-instance-id }}
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Configure AWS credentials
+#         uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-region: ${{ secrets.AWS_REGION }}
+
+#       - name: Start EC2 Spot Runner
+#         id: start-runner
+#         uses: machulav/ec2-github-runner@v2.4.1
+#         with:
+#           mode: start
+#           github-token: ${{ secrets.GH_TOKEN }}
+#           ec2-image-id: ami-021a584b49225376d
+#           ec2-instance-type: c7i-flex.large
+#           subnet-id: subnet-03bbd0fe6118b5500
+#           security-group-id: sg-0685916a0de89202c
+#           market-type: spot
+#           startup-timeout-minutes: 15
+#           ec2-device-name: /dev/sda1
+#           aws-resource-tags: >
+#             [
+#               {"Key":"Name","Value":"ec2-github-runner"},
+#               {"Key":"GitHubRepository","Value":"${{ github.repository }}"}
+#             ]
+#           block-device-mappings: >
+#             [
+#               {"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":100,"VolumeType":"gp3"}}
+#             ]
+
+#   run-on-ec2:
+#     name: Build, Push, and Trigger Coolify (on Spot Runner)
+#     needs: build-and-push
+#     runs-on: ${{ needs.build-and-push.outputs.label }}
+#     steps:
+#       - uses: actions/checkout@v4
+
+#       - name: Configure AWS credentials
+#         uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-region: ${{ secrets.AWS_REGION }}
+
+#       - name: Install Docker
+#         run: |
+#           sudo apt-get update
+#           sudo apt-get install -y docker.io
+#           sudo usermod -aG docker $(whoami)
+#           sudo systemctl enable docker
+#           sudo systemctl start docker
+
+#       - name: Login to Amazon ECR
+#         id: login-ecr
+#         uses: aws-actions/amazon-ecr-login@v2
+
+#       - name: Login to Docker Hub
+#         uses: docker/login-action@v3
+#         with:
+#           username: ${{ secrets.DOCKERHUB_USERNAME }}
+#           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+#       - name: Build Docker image
+#         env:
+#           ECR_IMAGE: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
+#           DOCKERHUB_IMAGE: iamsanthosh2203/educationalhub-frontend:latest
+#         run: |
+#           docker build -t "$ECR_IMAGE" -t "$DOCKERHUB_IMAGE" .
+
+#       - name: Push Docker images
+#         env:
+#           ECR_IMAGE: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPOSITORY }}:latest
+#           DOCKERHUB_IMAGE: iamsanthosh2203/educationalhub-frontend:latest
+#         run: |
+#           docker push "$ECR_IMAGE"
+#           docker push "$DOCKERHUB_IMAGE"
+
+#       - name: Trigger Coolify Deploy
+#         run: |
+#           curl -X POST \
+#             -H "Authorization: Bearer ${{ secrets.COOLIFY_API_KEY }}" \
+#             "${{ secrets.COOLIFY_DEPLOY_URL }}"
+
+#   cleanup-runner:
+#     name: Stop EC2 Spot Runner
+#     needs: [build-and-push, run-on-ec2]
+#     runs-on: ubuntu-latest
+#     if: always()
+#     steps:
+#       - name: Configure AWS credentials
+#         uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-region: ${{ secrets.AWS_REGION }}
+
+#       - name: Stop EC2 Runner
+#         uses: machulav/ec2-github-runner@v2.4.1
+#         with:
+#           mode: stop
+#           github-token: ${{ secrets.GH_TOKEN }}
+#           label: ${{ needs.build-and-push.outputs.label }}
+#           ec2-instance-id: ${{ needs.build-and-push.outputs.ec2-instance-id }}
